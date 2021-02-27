@@ -20,12 +20,8 @@ let processExited = false;
 
 const startProcess = () => {
   // Why spawn - https://stackoverflow.com/questions/48698234/node-js-spawn-vs-execute
-  const nodeProcess = spawn("node", [process.argv[2], "--colors"]);
-  nodeProcess.stdout.on("data", (data) => {
-    console.log(data.toString());
-  });
-  nodeProcess.stderr.on("data", (data) => {
-    console.error(data.toString());
+  const nodeProcess = spawn("node", [process.argv[2], "--colors"], {
+    stdio: [process.stdin, process.stdout, process.stderr],
   });
   // First exit happens and then close
   // Exit ->child process exits but stdio is not closed
@@ -50,7 +46,7 @@ const startProcess = () => {
 };
 
 const stopProcess = async (
-  targetProcess: child_process.ChildProcessWithoutNullStreams
+  targetProcess: child_process.ChildProcessByStdio<null, null, null>
 ) => {
   if (processExited) return true;
   console.debug(`Stopping process ${targetProcess.pid}`);
