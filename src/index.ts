@@ -4,11 +4,11 @@ import path from "path";
 import child_process from "child_process";
 import tree_kill from "tree-kill";
 import { Writable } from "stream";
-
 const spawn = child_process.spawn;
 
 class daenode {
   private processExited = false;
+  private previousReload: undefined | NodeJS.Timeout;
   private nodeProcess!: child_process.ChildProcessByStdio<Writable, null, null>;
   private pathsToWatch = [
     path.join(process.cwd(), "/**/*.js"),
@@ -27,12 +27,8 @@ class daenode {
   init = async () => {
     this.nodeProcess = this.startProcess();
     this.watchFiles();
-    process.once("SIGINT", async () => await this.exit("SIGINT"));
-    process.once("SIGTERM", async () => await this.exit("SIGTERM"));
-    process.stdin.on("close", (had_error) => console.log("stdin close"));
-    process.stdin.on("connect", () => console.log("stdin connect"));
-    process.stdin.on("end", () => console.log("stdin end"));
-    process.stdin.on("error", (err) => console.log({ "stdin err": err }));
+    process.once("SIGINT", async () => await this.exitHandler("SIGINT"));
+    process.once("SIGTERM", async () => await this.exitHandler("SIGTERM"));
     process.stdin.on("data", async (chunk) => {
       const str = chunk.toString();
       if (str === "rs\n") {
@@ -46,8 +42,8 @@ class daenode {
     }
     this.nodeProcess = this.startProcess();
   };
-  private exit = async (signal: string) => {
-    this.print("debug", "Detected " + signal);
+  private exitHandler = async (signal: string) => {
+    this.print("debug", `Detected ${signal}. Exiting...`);
     await this.stopProcess();
     process.exit();
   };
@@ -58,8 +54,11 @@ class daenode {
         ignoreInitial: true,
       })
       .on("all", async () => {
-        this.print("info", "File changed");
-        await this.reload();
+        let timeoutKey = setTimeout(async () => {
+          if (this.previousReload) clearTimeout(this.previousReload);
+          await this.reload();
+        }, 1000);
+        this.previousReload = timeoutKey;
       });
   };
   private print = (type: keyof Console, message: string) => {
@@ -100,19 +99,16 @@ class daenode {
 
   private stopProcess = async () => {
     if (this.processExited) return true;
-    this.print("debug", `Stopping process ${this.nodeProcess.pid}`);
     return new Promise<boolean>((resolve, reject) => {
       tree_kill(this.nodeProcess.pid, "SIGTERM", (err) => {
-        if (err)
-          tree_kill(this.nodeProcess.pid, "SIGKILL", () => {
-            this.processExited = true;
-            resolve(true);
-          });
-        else {
-          this.processExited = true;
+        if (err) tree_kill(this.nodeProcess.pid, "SIGKILL", () => {});
+      });
+      const key = setInterval(() => {
+        if (this.processExited) {
+          clearInterval(key);
           resolve(true);
         }
-      });
+      }, 500);
     });
   };
 }
