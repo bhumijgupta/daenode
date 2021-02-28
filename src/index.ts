@@ -1,20 +1,20 @@
 #!/usr/bin/env node
 import chowkidar from "chokidar";
 import path from "path";
-import child_process from "child_process";
-import tree_kill from "tree-kill";
+import childProcess from "child_process";
+import treeKill from "tree-kill";
 import { Writable } from "stream";
-const spawn = child_process.spawn;
 
-class daenode {
+class Daenode {
   private processExited = false;
   private previousReload: undefined | NodeJS.Timeout;
-  private nodeProcess!: child_process.ChildProcessByStdio<Writable, null, null>;
+  private nodeProcess!: childProcess.ChildProcessByStdio<Writable, null, null>;
   private pathsToWatch = [
     path.join(process.cwd(), "/**/*.js"),
     path.join(process.cwd(), "/**/*.json"),
     path.join(process.cwd(), "/**/*.env.*"),
   ];
+
   constructor() {
     if (process.argv.length !== 3)
       console.error(
@@ -24,6 +24,7 @@ class daenode {
       this.init();
     }
   }
+
   init = async () => {
     this.nodeProcess = this.startProcess();
     this.watchFiles();
@@ -36,17 +37,20 @@ class daenode {
       }
     });
   };
+
   private reload = async () => {
     if (!this.processExited) {
       await this.stopProcess();
     }
     this.nodeProcess = this.startProcess();
   };
+
   private exitHandler = async (signal: string) => {
     this.print("debug", `Detected ${signal}. Exiting...`);
     await this.stopProcess();
     process.exit();
   };
+
   private watchFiles = () => {
     chowkidar
       .watch(this.pathsToWatch, {
@@ -54,6 +58,7 @@ class daenode {
         ignoreInitial: true,
       })
       .on("all", async () => {
+        // Debounce
         let timeoutKey = setTimeout(async () => {
           if (this.previousReload) clearTimeout(this.previousReload);
           await this.reload();
@@ -61,12 +66,14 @@ class daenode {
         this.previousReload = timeoutKey;
       });
   };
+
   private print = (type: keyof Console, message: string) => {
     console[type](`[DAENODE]: ${message}`);
   };
+
   private startProcess = () => {
     // Why spawn - https://stackoverflow.com/questions/48698234/node-js-spawn-vs-execute
-    const nodeProcess = spawn("node", [process.argv[2], "--colors"], {
+    const nodeProcess = childProcess.spawn("node", [process.argv[2]], {
       stdio: ["pipe", process.stdout, process.stderr],
     });
     // First exit happens and then close
@@ -100,8 +107,8 @@ class daenode {
   private stopProcess = async () => {
     if (this.processExited) return true;
     return new Promise<boolean>((resolve, reject) => {
-      tree_kill(this.nodeProcess.pid, "SIGTERM", (err) => {
-        if (err) tree_kill(this.nodeProcess.pid, "SIGKILL", () => {});
+      treeKill(this.nodeProcess.pid, "SIGTERM", (err) => {
+        if (err) treeKill(this.nodeProcess.pid, "SIGKILL", () => {});
       });
       const key = setInterval(() => {
         if (this.processExited) {
@@ -112,4 +119,4 @@ class daenode {
     });
   };
 }
-new daenode();
+new Daenode();
