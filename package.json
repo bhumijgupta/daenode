@@ -1,14 +1,18 @@
 {
   "name": "daenode",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "main": "build/index.js",
   "bin": {
     "daenode": "./build/index.js"
   },
+  "files": [
+    "build/*"
+  ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc",
-    "watch": "tsc -w"
+    "watch": "tsc -w",
+    "prepublishOnly": "rm -rf build && tsc"
   },
   "author": "",
   "license": "ISC",
