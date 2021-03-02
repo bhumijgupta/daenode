@@ -14,9 +14,9 @@
     "watch": "tsc -w",
     "prepublishOnly": "rm -rf build && tsc"
   },
-  "author": "",
+  "author": "Bhumij Gupta <bhumijgupta@gmail.com>",
   "license": "ISC",
-  "description": "",
+  "description": "A simple nodemon clone in under 120 lines. Created for educational purposes.",
   "devDependencies": {
     "@types/node": "^14.14.31",
     "typescript": "^4.2.2"

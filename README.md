@@ -8,3 +8,4 @@ Daenode is a simple nodemon clone in under 120 lines. Created for educational pu
 2. Different exit signals
 3. Debounce function
 4. NodeJS Streams
+5. Termination signal
