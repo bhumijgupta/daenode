@@ -8,7 +8,7 @@ import { Writable } from "stream";
 type restartEvent = "Manual reload" | "File change";
 
 class Daenode {
-  private processExited = false;
+  private processExited = true;
   private previousReload: undefined | NodeJS.Timeout;
   private nodeProcess!: childProcess.ChildProcessByStdio<Writable, null, null>;
   private pathsToWatch = [
