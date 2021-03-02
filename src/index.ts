@@ -5,6 +5,8 @@ import childProcess from "child_process";
 import treeKill from "tree-kill";
 import { Writable } from "stream";
 
+type restartEvent = "Manual reload" | "File change";
+
 class Daenode {
   private processExited = false;
   private previousReload: undefined | NodeJS.Timeout;
@@ -33,12 +35,13 @@ class Daenode {
     process.stdin.on("data", async (chunk) => {
       const str = chunk.toString();
       if (str === "rs\n") {
-        await this.reload();
+        await this.reload("Manual reload");
       }
     });
   };
 
-  private reload = async () => {
+  private reload = async (event: restartEvent) => {
+    this.print("info", `${event} detected. Restarting process`);
     if (!this.processExited) {
       await this.stopProcess();
     }
@@ -61,7 +64,7 @@ class Daenode {
         // Debounce
         let timeoutKey = setTimeout(async () => {
           if (this.previousReload) clearTimeout(this.previousReload);
-          await this.reload();
+          await this.reload("File change");
         }, 1000);
         this.previousReload = timeoutKey;
       });
@@ -76,6 +79,7 @@ class Daenode {
     const nodeProcess = childProcess.spawn("node", [process.argv[2]], {
       stdio: ["pipe", process.stdout, process.stderr],
     });
+    this.processExited = false;
     // First exit happens and then close
     // Exit ->child process exits but stdio is not closed
     // Close -> Child process stdio is also closed
@@ -98,7 +102,6 @@ class Daenode {
     });
     nodeProcess.on("error", (err) => {
       this.processExited = true;
-      // Ref: https://nodejs.org/docs/latest-v14.x/api/child_process.html
       this.print("log", `Failed to start process ${process.argv[2]}`);
     });
     return nodeProcess;
