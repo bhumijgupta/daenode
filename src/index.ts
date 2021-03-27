@@ -1,15 +1,15 @@
 #!/usr/bin/env node
+import childProcess from "child_process";
 import chowkidar from "chokidar";
 import path from "path";
-import childProcess from "child_process";
 import treeKill from "tree-kill";
 import { Writable } from "stream";
 
 type restartEvent = "Manual reload" | "File change";
 
 class Daenode {
-  private processExited = true;
   private previousReload: undefined | NodeJS.Timeout;
+  private processExited = true;
   private nodeProcess!: childProcess.ChildProcessByStdio<Writable, null, null>;
   private pathsToWatch = [
     path.join(process.cwd(), "/**/*.js"),
@@ -22,60 +22,21 @@ class Daenode {
       console.error(
         `Expected 1 argument, recieved ${process.argv.length - 2} arguments`
       );
-    else {
-      this.init();
-    }
+    else this.init();
   }
 
   init = async () => {
-    this.nodeProcess = this.startProcess();
+    this.nodeProcess = await this.startProcess();
     this.watchFiles();
     process.once("SIGINT", async () => await this.exitHandler("SIGINT"));
     process.once("SIGTERM", async () => await this.exitHandler("SIGTERM"));
     process.stdin.on("data", async (chunk) => {
       const str = chunk.toString();
-      if (str === "rs\n") {
-        await this.reload("Manual reload");
-      }
+      if (str === "rs\n") await this.reload("Manual reload");
     });
   };
 
-  private reload = async (event: restartEvent) => {
-    this.print("info", `${event} detected. Restarting process`);
-    if (!this.processExited) {
-      await this.stopProcess();
-    }
-    this.nodeProcess = this.startProcess();
-  };
-
-  private exitHandler = async (signal: string) => {
-    this.print("debug", `Detected ${signal}. Exiting...`);
-    await this.stopProcess();
-    process.exit();
-  };
-
-  private watchFiles = () => {
-    chowkidar
-      .watch(this.pathsToWatch, {
-        ignored: "**/node_modules/*",
-        ignoreInitial: true,
-      })
-      .on("all", async () => {
-        // Debounce
-        let timeoutKey = setTimeout(async () => {
-          if (this.previousReload) clearTimeout(this.previousReload);
-          await this.reload("File change");
-        }, 1000);
-        this.previousReload = timeoutKey;
-      });
-  };
-
-  private print = (type: keyof Console, message: string) => {
-    console[type](`[DAENODE]: ${message}`);
-  };
-
   private startProcess = () => {
-    // Why spawn - https://stackoverflow.com/questions/48698234/node-js-spawn-vs-execute
     const nodeProcess = childProcess.spawn("node", [process.argv[2]], {
       stdio: ["pipe", process.stdout, process.stderr],
     });
@@ -107,6 +68,31 @@ class Daenode {
     return nodeProcess;
   };
 
+  private print = (type: keyof Console, message: string) => {
+    console[type](`[DAENODE]: ${message}`);
+  };
+
+  private watchFiles = () => {
+    chowkidar
+      .watch(this.pathsToWatch, {
+        ignored: "**/node_modules/*",
+        ignoreInitial: true,
+      })
+      .on("all", async () => {
+        let timeoutKey = setTimeout(async () => {
+          if (this.previousReload) clearTimeout(this.previousReload);
+          await this.reload("File change");
+        }, 1000);
+        this.previousReload = timeoutKey;
+      });
+  };
+
+  private reload = async (event: restartEvent) => {
+    this.print("info", `${event} detected. Restarting process`);
+    await this.stopProcess();
+    this.nodeProcess = this.startProcess();
+  };
+
   private stopProcess = async () => {
     if (this.processExited) return true;
     return new Promise<boolean>((resolve, reject) => {
@@ -121,5 +107,12 @@ class Daenode {
       }, 500);
     });
   };
+
+  private exitHandler = async (signal: string) => {
+    this.print("debug", `Detected signal ${signal}. Exiting...`);
+    await this.stopProcess();
+    process.exit();
+  };
 }
+
 new Daenode();
